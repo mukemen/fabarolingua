@@ -3,14 +3,14 @@ export const runtime = "nodejs";
 
 const TIMEOUT_MS = 15000;
 
-// 1) PRIORITAS: Google (kalau ada key)
+// Google (jika ada key)
 async function useGoogle(q: string, source: string, target: string) {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error("NO_GOOGLE_KEY");
   const params = new URLSearchParams();
   params.set("q", q);
   params.set("target", target);
-  if (source !== "auto") params.set("source", source);
+  if (source) params.set("source", source);
   params.set("format", "text");
 
   const ac = new AbortController();
@@ -31,10 +31,10 @@ async function useGoogle(q: string, source: string, target: string) {
   } finally { clearTimeout(t); }
 }
 
-// 2) Fallback: LibreTranslate (ENV atau default mirror gratis)
+// LibreTranslate (ENV atau default mirror)
 async function useLibre(q: string, source: string, target: string) {
   const base = (process.env.LIBRETRANSLATE_URL || "https://translate.argosopentech.com").replace(/\/$/, "");
-  const key = process.env.LIBRETRANSLATE_API_KEY || "";
+  const key  = process.env.LIBRETRANSLATE_API_KEY || "";
 
   const params = new URLSearchParams();
   params.set("q", q);
@@ -59,22 +59,19 @@ async function useLibre(q: string, source: string, target: string) {
   } finally { clearTimeout(t); }
 }
 
-// 3) Last resort: MyMemory (gratis, tanpa key)
+// MyMemory (gratis, tanpa key)
 function norm(code: string) {
-  // MyMemory lebih nyaman dua huruf
   return (code || "").toLowerCase().split("-")[0] || "en";
 }
 async function useMyMemory(q: string, source: string, target: string) {
-  const src = source === "auto" ? "auto" : norm(source);
+  const src = norm(source);
   const tgt = norm(target);
   const qs = new URLSearchParams({ q, langpair: `${src}|${tgt}` });
 
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
   try {
-    const r = await fetch(`https://api.mymemory.translated.net/get?${qs.toString()}`, {
-      signal: ac.signal, cache: "no-store",
-    });
+    const r = await fetch(`https://api.mymemory.translated.net/get?${qs.toString()}`, { signal: ac.signal, cache: "no-store" });
     const data = await r.json();
     if (!r.ok) throw new Error(`MYMEM_${r.status}:${JSON.stringify(data)}`);
     return (data?.responseData?.translatedText as string) || "";
@@ -83,10 +80,11 @@ async function useMyMemory(q: string, source: string, target: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, source = "auto", target = "en" } = await req.json();
-    if (!text) return NextResponse.json({ error: "No text provided" }, { status: 400 });
+    const { text, source, target } = await req.json();
+    if (!text || !source || !target) {
+      return NextResponse.json({ error: "text, source, target wajib diisi" }, { status: 400 });
+    }
 
-    // urutan fallback: Google -> Libre -> MyMemory
     const steps = [
       () => useGoogle(text, source, target),
       () => useLibre(text, source, target),
@@ -98,15 +96,9 @@ export async function POST(req: NextRequest) {
       try {
         const out = await fn();
         if (out) return NextResponse.json({ translation: out });
-      } catch (e) {
-        lastErr = e; // lanjut ke provider berikutnya
-      }
+      } catch (e) { lastErr = e; }
     }
-
-    return NextResponse.json(
-      { error: `All providers failed: ${String(lastErr)}` },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: `All providers failed: ${String(lastErr)}` }, { status: 502 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Internal error" }, { status: 500 });
   }
