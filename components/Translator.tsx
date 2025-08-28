@@ -2,39 +2,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Lang = { code: string; name: string };
-type TargetsMap = Record<string, string[]>;
 
-// BCP-47 untuk Speech API (STT/TTS)
+// BCP-47 untuk STT/TTS (fallback sederhana)
 function bcp47(code: string) {
   const map: Record<string, string> = {
-    id: "id-ID",
-    en: "en-US",
-    ar: "ar-SA",
-    zh: "zh-CN",
-    "zh-Hant": "zh-TW",
-    ja: "ja-JP",
-    ko: "ko-KR",
-    fr: "fr-FR",
-    de: "de-DE",
-    es: "es-ES",
-    pt: "pt-PT",
-    "pt-BR": "pt-BR",
-    it: "it-IT",
-    ru: "ru-RU",
-    tr: "tr-TR",
-    th: "th-TH",
-    vi: "vi-VN",
-    hi: "hi-IN",
+    id: "id-ID", en: "en-US", ja: "ja-JP", ru: "ru-RU",
+    es: "es-ES", fr: "fr-FR", de: "de-DE", pt: "pt-PT",
+    "pt-BR": "pt-BR", zh: "zh-CN", "zh-Hant": "zh-TW", ko: "ko-KR",
+    tr: "tr-TR", th: "th-TH", vi: "vi-VN", hi: "hi-IN", ar: "ar-SA",
   };
   return map[code] || `${code}-${code.toUpperCase()}`;
 }
 
 export default function Translator(): JSX.Element {
   const [langs, setLangs] = useState<Lang[]>([]);
-  const [targetsMap, setTargetsMap] = useState<TargetsMap | null>(null);
-
-  const [source, setSource] = useState<string>("auto");
-  const [target, setTarget] = useState<string>("en");
+  const [source, setSource] = useState<string>("id"); // default Indonesia
+  const [target, setTarget] = useState<string>("en"); // default Inggris
 
   const [text, setText] = useState("");
   const [result, setResult] = useState("");
@@ -44,69 +27,41 @@ export default function Translator(): JSX.Element {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Muat bahasa dari API dan normalisasi bentuk respons
+  // Ambil bahasa langsung dari API (tanpa "auto")
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch("/api/languages", { cache: "no-store" });
-        const raw = await r.json();
-
-        let list: Lang[] = [];
-        let tmap: TargetsMap | null = null;
-
-        if (Array.isArray(raw)) {
-          // Bisa jadi elemen punya 'targets' (vendor tertentu)
-          list = raw.map((x: any) => ({ code: x.code, name: x.name }));
-          // Jika tiap item menyertakan daftar 'targets', kumpulkan jadi peta
-          if (raw.some((x: any) => Array.isArray(x.targets))) {
-            tmap = {};
-            for (const x of raw) {
-              if (Array.isArray(x.targets)) tmap[x.code] = x.targets;
-            }
-          }
-        } else if (raw && typeof raw === "object") {
-          // Bentuk { languages: [...], targets: {...} }
-          if (Array.isArray(raw.languages)) list = raw.languages;
-          else if (Array.isArray(raw)) list = raw as Lang[];
-          if (raw.targets && typeof raw.targets === "object") tmap = raw.targets;
-        }
-
-        const withDetect = [{ code: "auto", name: "Detect" }, ...list];
-        setLangs(withDetect);
-        setTargetsMap(tmap || null);
+        const data = await r.json();
+        // normalisasi: array [{code,name}, ...]
+        const list: Lang[] = Array.isArray(data)
+          ? data.map((x: any) => ({ code: x.code, name: x.name }))
+          : (data.languages || data); // dukung bentuk {languages: [...]}
+        setLangs(list);
+        // sinkronkan default jika tidak ada di list
+        if (!list.find(l => l.code === source) && list.length) setSource(list[0].code);
+        if (!list.find(l => l.code === target) && list.length > 1) setTarget(list[1].code);
       } catch {
-        // Fallback minimal
-        const withDetect = [
-          { code: "auto", name: "Detect" },
+        // fallback minimal
+        const list: Lang[] = [
           { code: "id", name: "Indonesian" },
           { code: "en", name: "English" },
-          { code: "es", name: "Spanish" },
-          { code: "fr", name: "French" },
+          { code: "ja", name: "Japanese" },
+          { code: "ru", name: "Russian" },
         ];
-        setLangs(withDetect);
-        setTargetsMap(null);
+        setLangs(list);
       }
     })();
   }, []);
 
-  // Hitung daftar target yang diizinkan untuk source terpilih
-  const allowedTargets = useMemo(() => {
-    const allCodes = langs.filter(l => l.code !== "auto").map(l => l.code);
-    if (source === "auto") return allCodes;
-    if (targetsMap && targetsMap[source]) {
-      return targetsMap[source].filter((c) => allCodes.includes(c));
-    }
-    return allCodes;
-  }, [langs, source, targetsMap]);
-
-  // Jaga konsistensi target saat source berubah
+  // pastikan target tidak kosong / sama dengan source (opsional)
   useEffect(() => {
-    if (target === "auto" || !allowedTargets.includes(target)) {
-      // pilih 'en' kalau tersedia, kalau tidak ambil pertama
-      const next = allowedTargets.includes("en") ? "en" : allowedTargets[0];
-      if (next) setTarget(next);
+    if (langs.length === 0) return;
+    if (!langs.find(l => l.code === target)) {
+      const alt = langs.find(l => l.code !== source)?.code || langs[0].code;
+      setTarget(alt);
     }
-  }, [allowedTargets, target]);
+  }, [langs, source, target]);
 
   async function handleTranslate() {
     if (!text.trim()) return;
@@ -116,6 +71,7 @@ export default function Translator(): JSX.Element {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // TANPA auto: selalu kirim source & target pilihan user
         body: JSON.stringify({ text, source, target }),
       });
       const data = await res.json();
@@ -128,11 +84,8 @@ export default function Translator(): JSX.Element {
   }
 
   function swap() {
-    if (source === "auto") return; // kalau detect, tidak bisa swap
-    const s = source;
-    const t = target;
-    setSource(t);
-    setTarget(s);
+    const s = source, t = target;
+    setSource(t); setTarget(s);
     if (result) setText(result);
     setResult("");
   }
@@ -152,7 +105,7 @@ export default function Translator(): JSX.Element {
 
     const rec = new SR();
     recognitionRef.current = rec;
-    rec.lang = bcp47(source === "auto" ? "id" : source); // default ID kalau detect
+    rec.lang = bcp47(source); // pakai bahasa sumber yang dipilih user
     rec.interimResults = true;
     rec.continuous = false;
 
@@ -185,7 +138,7 @@ export default function Translator(): JSX.Element {
       return;
     }
     const u = new SpeechSynthesisUtterance(textToSay);
-    u.lang = bcp47(target);
+    u.lang = bcp47(target); // pakai bahasa target
     const voices = window.speechSynthesis.getVoices();
     const match = voices.find(v =>
       v.lang.toLowerCase().startsWith(bcp47(target).split("-")[0].toLowerCase())
@@ -194,8 +147,6 @@ export default function Translator(): JSX.Element {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
   }
-
-  const targetOptions = langs.filter(l => l.code !== "auto" && allowedTargets.includes(l.code));
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-6 bg-gradient-to-b from-[#3a0c6e] to-black text-white">
@@ -232,7 +183,7 @@ export default function Translator(): JSX.Element {
             onChange={(e) => setTarget(e.target.value)}
             className="rounded-2xl p-3 bg-white text-black shadow shadow-black/30"
           >
-            {targetOptions.map(l => (
+            {langs.map(l => (
               <option key={l.code} value={l.code}>{l.name}</option>
             ))}
           </select>
