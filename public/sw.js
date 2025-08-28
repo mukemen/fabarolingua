@@ -1,5 +1,5 @@
-// UBAH versinya setiap rilis: v7, v8, dst.
-const CACHE = "fabaro-lingua-v7";
+// Ganti versinya SETIAP rilis supaya HP ambil versi baru
+const CACHE = "fabaro-lingua-v9";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -9,7 +9,7 @@ self.addEventListener("install", (event) => {
         "/",
         "/manifest.json",
         "/icons/icon-192.png",
-        "/icons/icon-512.png"
+        "/icons/icon-512.png",
       ])
     )
   );
@@ -17,8 +17,8 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
