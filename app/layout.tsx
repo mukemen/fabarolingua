@@ -8,6 +8,13 @@ export const metadata = {
   themeColor: "#2b0b52",
 };
 
+// Pastikan viewport mobile
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -15,7 +22,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="id">
       <body className={inter.className}>
         {children}
-        {/* Register Service Worker (PWA) */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
