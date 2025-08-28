@@ -1,7 +1,7 @@
 {
-  "name": "Fabaro Lingua \u2014 Voice & Text Translator",
-  "short_name": "Fabaro Lingua",
-  "description": "Penerjemah mewah dan cepat: suara & teks, untuk ratusan bahasa. Powered by FABARO.",
+  "name": "Fabaro Lingua",
+  "short_name": "FabaroLingua",
+  "description": "Translator suara & teks — modern, mewah, powered by FABARO",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0b12",
