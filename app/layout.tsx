@@ -2,7 +2,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
@@ -36,17 +36,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id">
       <head>
-        {/* Extra compatibility tags (aman walau metadata juga generate) */}
+        {/* Extra compatibility tags */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2B0B52" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
       </head>
       <body className={inter.className}>
         {children}
 
-        {/* Register Service Worker untuk install & offline */}
+        {/* Register Service Worker */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
