@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ENDPOINT = process.env.LIBRETRANSLATE_URL || "https://libretranslate.com";
+const ENDPOINT = (process.env.LIBRETRANSLATE_URL || "https://lt.blitzw.in").replace(/\/$/, "");
 const API_KEY = process.env.LIBRETRANSLATE_API_KEY || "";
 
 export async function POST(req: NextRequest) {
