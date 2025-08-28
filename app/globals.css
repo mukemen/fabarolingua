@@ -2,48 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-gradient: radial-gradient(1000px 600px at 20% 10%, rgba(139,92,246,0.35), transparent 60%),
-                  radial-gradient(800px 500px at 80% 0%, rgba(34,197,94,0.25), transparent 60%),
-                  radial-gradient(900px 600px at 50% 100%, rgba(59,130,246,0.18), transparent 60%);
-}
-
-html, body {
-  height: 100%;
-}
-
+/* Global Styles */
 body {
   background: #0b0b12;
-  background-image: var(--bg-gradient);
-  color: #e7e7ee;
+  color: #ffffff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  margin: 0;
+  padding: 0;
 }
 
-.glass {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  backdrop-filter: blur(10px);
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
 }
 
-.btn {
-  @apply inline-flex items-center justify-center px-4 py-2 rounded-xl font-medium transition;
+button {
+  cursor: pointer;
+  transition: background 0.2s ease-in-out, transform 0.1s ease-in-out;
 }
 
-.btn-primary {
-  @apply btn bg-brand-600 hover:bg-brand-500 shadow-glow;
-}
-
-.btn-ghost {
-  @apply btn bg-white/5 hover:bg-white/10;
-}
-
-.input {
-  @apply w-full rounded-xl bg-white/5 border border-white/10 p-3 text-sm outline-none focus:ring-2 focus:ring-brand-500;
-}
-
-.select {
-  @apply w-full rounded-xl bg-white/5 border border-white/10 p-3 text-sm outline-none focus:ring-2 focus:ring-brand-500;
-}
-
-.card {
-  @apply glass rounded-2xl shadow-xl p-4 md:p-6;
+button:hover {
+  transform: translateY(-2px);
 }
