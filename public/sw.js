@@ -1,13 +1,13 @@
-// ====== BUMP VERSI SETIAP RILIS ======
-const VERSION = "v10";
+// ===== BUMP VERSI SETIAP RILIS =====
+const VERSION = "v11";
 const PRECACHE = `fabaro-precache-${VERSION}`;
 const RUNTIME  = `fabaro-runtime-${VERSION}`;
 
-// HANYA precache file statis yang aman (JANGAN "/")
 const PRECACHE_URLS = [
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -18,35 +18,26 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => ![PRECACHE, RUNTIME].includes(k))
-          .map((k) => caches.delete(k))
-      )
+      Promise.all(keys.filter((k) => ![PRECACHE, RUNTIME].includes(k)).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
-// Strategi:
-// - HTML / navigations => NETWORK-FIRST (supaya layout selalu terbaru)
-// - Asset Next.js & icons => CACHE-FIRST (+isi runtime cache)
-// - Lainnya => langsung ke network
+// HTML = network-first (biar selalu terbaru)
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
   const accept = req.headers.get("accept") || "";
 
-  // 1) HTML / navigations -> network-first (JANGAN dicache)
+  // 1) Navigasi/HTML -> network-first
   if (req.mode === "navigate" || accept.includes("text/html")) {
-    event.respondWith(
-      fetch(req).catch(() => caches.match("/offline.html")) // opsional kalau punya
-    );
+    event.respondWith(fetch(req));
     return;
   }
 
   // 2) Asset Next.js & icons -> cache-first
-  if (url.pathname.startsWith("/_next/") || url.pathname.startsWith("/icons/")) {
+  if (url.pathname.startsWith("/_next/") || url.pathname.startsWith("/icons/") || url.pathname === "/apple-touch-icon.png") {
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) return cached;
@@ -60,6 +51,5 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 3) Default: pass-through
-  // (biarkan ke network tanpa intervensi)
+  // 3) Default: network
 });
