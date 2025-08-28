@@ -9,7 +9,23 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Registrasi Service Worker untuk PWA */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(() => console.log("Service Worker registered"))
+                    .catch(err => console.warn("Service Worker failed", err));
+                });
+              }
+            `,
+          }}
+        />
+      </body>
     </html>
   );
 }
