@@ -1,8 +1,8 @@
-// GANTI versi tiap kali rilis baru
-const CACHE = "fabaro-lingua-v5";
+// UBAH versinya setiap rilis: v7, v8, dst.
+const CACHE = "fabaro-lingua-v7";
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting(); // langsung aktifkan SW baru
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE).then((cache) =>
       cache.addAll([
@@ -21,7 +21,7 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     )
   );
-  self.clients.claim(); // ambil alih semua tab
+  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
