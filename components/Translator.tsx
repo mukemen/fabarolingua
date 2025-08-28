@@ -3,106 +3,105 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type Lang = { code: string; name: string };
 
-// Bahasa prioritas yang kamu minta (wajib ada di dropdown)
+// Bahasa prioritas yang kamu minta (wajib muncul di dropdown)
 const PINNED: Lang[] = [
-  { code: "ja", name: "Japanese (Jepang)" },
-  { code: "zh", name: "Chinese (Mandarin)" },
-  { code: "ru", name: "Russian (Rusia)" },
-  { code: "de", name: "German (Jerman)" },
-  { code: "hi", name: "Hindi (India)" },
-  { code: "ar", name: "Arabic (Arab)" },
-  { code: "fr", name: "French (Perancis)" },
-  { code: "it", name: "Italian (Italia)" },
-  { code: "en", name: "English (Amerika)" },
-  { code: "ko", name: "Korean (Korea Selatan)" },
-  { code: "nl", name: "Dutch (Belanda)" },
-  { code: "su", name: "Sundanese (Sunda)" },
-  { code: "jv", name: "Javanese (Jawa)" },
+  { code: "ja",  name: "Japanese (Jepang)" },
+  { code: "zh",  name: "Chinese (Mandarin)" },
+  { code: "ru",  name: "Russian (Rusia)" },
+  { code: "de",  name: "German (Jerman)" },
+  { code: "hi",  name: "Hindi (India)" },
+  { code: "ar",  name: "Arabic (Arab)" },
+  { code: "fr",  name: "French (Perancis)" },
+  { code: "it",  name: "Italian (Italia)" },
+  { code: "en",  name: "English (Amerika)" },
+  { code: "ko",  name: "Korean (Korea Selatan)" },
+  { code: "nl",  name: "Dutch (Belanda)" },
+  { code: "su",  name: "Sundanese (Sunda)" },
+  { code: "jv",  name: "Javanese (Jawa)" },
   { code: "min", name: "Minangkabau (Padang)" },
 ];
 
-// Fallback tambahan supaya dropdown selalu ramai
+// Tambahan fallback supaya dropdown selalu ramai
 const FALLBACK: Lang[] = [
-  { code: "id", name: "Indonesian (Indonesia)" },
-  { code: "es", name: "Spanish (Spanyol)" },
-  { code: "pt", name: "Portuguese (Portugal)" },
+  { code: "id",    name: "Indonesian (Indonesia)" },
+  { code: "es",    name: "Spanish (Spanyol)" },
+  { code: "pt",    name: "Portuguese (Portugal)" },
   { code: "pt-BR", name: "Portuguese (Brazil)" },
-  { code: "it", name: "Italian (Italia)" },
-  { code: "tr", name: "Turkish (Turki)" },
-  { code: "vi", name: "Vietnamese (Vietnam)" },
-  { code: "th", name: "Thai (Thailand)" },
-  { code: "uk", name: "Ukrainian (Ukraina)" },
-  { code: "pl", name: "Polish (Polandia)" },
-  { code: "sv", name: "Swedish (Swedia)" },
+  { code: "tr",    name: "Turkish (Turki)" },
+  { code: "vi",    name: "Vietnamese (Vietnam)" },
+  { code: "th",    name: "Thai (Thailand)" },
+  { code: "uk",    name: "Ukrainian (Ukraina)" },
+  { code: "pl",    name: "Polish (Polandia)" },
+  { code: "sv",    name: "Swedish (Swedia)" },
 ];
 
-// BCP-47 (untuk STT/TTS). Beberapa bahasa daerah tidak didukung,
-/// kita fallback ke id-ID agar tetap bisa rekam/suara.
+// BCP-47 untuk STT/TTS (beberapa bahasa daerah fallback ke id-ID)
 function bcp47(code: string) {
   const map: Record<string, string> = {
     id: "id-ID", en: "en-US", ar: "ar-SA", de: "de-DE", es: "es-ES",
     fr: "fr-FR", it: "it-IT", ja: "ja-JP", ko: "ko-KR", nl: "nl-NL",
     pl: "pl-PL", pt: "pt-PT", "pt-BR": "pt-BR", ru: "ru-RU", sv: "sv-SE",
-    th: "th-TH", tr: "tr-TR", uk: "uk-UA", vi: "vi-VN",
-    zh: "zh-CN", "zh-Hant": "zh-TW",
-    // daerah → fallback ke Indonesia
+    th: "th-TH", tr: "tr-TR", uk: "uk-UA", vi: "vi-VN", zh: "zh-CN", "zh-Hant": "zh-TW",
+    // daerah → fallback
     su: "id-ID", jv: "id-ID", min: "id-ID",
   };
   return map[code] || `${code}-${code.toUpperCase()}`;
 }
 
 export default function Translator(): JSX.Element {
-  // state bahasa & teks
   const [langs, setLangs] = useState<Lang[]>([]);
   const [source, setSource] = useState<string>("id"); // default input Indonesia
   const [target, setTarget] = useState<string>("en"); // default output Inggris
 
-  const [text, setText] = useState("");
-  const [result, setResult] = useState("");
+  const [text, setText]       = useState("");
+  const [result, setResult]   = useState("");
   const [loading, setLoading] = useState(false);
 
-  // voice
+  // Voice
   const [listening, setListening] = useState(false);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [conversation, setConversation] = useState(true); // Mode Percakapan
   const recognitionRef = useRef<any>(null);
 
-  // Ambil semua bahasa dari API, lalu gabungkan dengan PINNED + FALLBACK
+  // Ambil bahasa dari API, lalu gabungkan dengan PINNED + FALLBACK (tanpa "auto")
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch("/api/languages", { cache: "no-store" });
         const raw = await r.json();
-        let list: Lang[] = [];
+        let apiList: Lang[] = [];
 
-        if (Array.isArray(raw)) list = raw.map((x: any) => ({ code: x.code, name: x.name }));
-        else if (raw && typeof raw === "object" && Array.isArray(raw.languages)) list = raw.languages;
+        if (Array.isArray(raw)) {
+          apiList = raw.map((x: any) => ({ code: x.code, name: x.name }));
+        } else if (raw && typeof raw === "object" && Array.isArray(raw.languages)) {
+          apiList = raw.languages;
+        }
 
         const byCode: Record<string, Lang> = {};
-        [...list, ...PINNED, ...FALLBACK].forEach((l) => (byCode[l.code] = l));
+        [...apiList, ...PINNED, ...FALLBACK].forEach(l => (byCode[l.code] = l));
 
-        // urutkan: pinned di atas (urut sesuai array), lalu sisanya A→Z
-        const rest = Object.values(byCode).filter(
-          (l) => !PINNED.find((p) => p.code === l.code)
-        ).sort((a, b) => a.name.localeCompare(b.name));
+        // urut: pinned (sesuai urutan), lalu sisanya A→Z
+        const rest = Object.values(byCode)
+          .filter(l => !PINNED.find(p => p.code === l.code))
+          .sort((a, b) => a.name.localeCompare(b.name));
 
-        setLangs([...PINNED, ...rest]);
+        const final = [...PINNED, ...rest];
+        setLangs(final);
 
-        // sinkron default supaya selalu valid
-        const all = [...PINNED, ...rest];
-        if (!all.find((l) => l.code === source)) setSource(all[0]?.code || "en");
-        if (!all.find((l) => l.code === target)) setTarget(all.find(l => l.code !== source)?.code || "id");
+        // pastikan default valid
+        if (!final.find(l => l.code === source)) setSource(final[0]?.code || "en");
+        if (!final.find(l => l.code === target)) setTarget(final.find(l => l.code !== source)?.code || "id");
       } catch {
-        const all = [...PINNED, ...FALLBACK];
-        setLangs(all);
+        const final = [...PINNED, ...FALLBACK];
+        setLangs(final);
       }
     })();
   }, []);
 
-  // pastikan source != target
+  // jaga source != target
   useEffect(() => {
     if (source === target && langs.length > 1) {
-      const alt = langs.find((l) => l.code !== source);
+      const alt = langs.find(l => l.code !== source);
       if (alt) setTarget(alt.code);
     }
   }, [source, target, langs]);
@@ -135,7 +134,7 @@ export default function Translator(): JSX.Element {
     setResult("");
   }
 
-  // ===== Speech-to-Text (mic) =====
+  // ===== Speech-to-Text (mic tekan–tahan)
   const sttSupported = useMemo(() => {
     if (typeof window === "undefined") return false;
     const w: any = window;
@@ -149,7 +148,7 @@ export default function Translator(): JSX.Element {
 
     const rec = new SR();
     recognitionRef.current = rec;
-    rec.lang = bcp47(source);           // pakai bahasa sumber yang dipilih
+    rec.lang = bcp47(source);
     rec.interimResults = true;
     rec.continuous = false;
 
@@ -164,10 +163,7 @@ export default function Translator(): JSX.Element {
     rec.onerror = () => setListening(false);
     rec.onend = async () => {
       setListening(false);
-      if (conversation) {
-        // Mode Percakapan: selesai rekam → langsung terjemahkan (+ autoSpeak jika aktif)
-        await handleTranslate();
-      }
+      if (conversation) await handleTranslate(); // mode Percakapan
     };
 
     rec.start();
@@ -178,7 +174,7 @@ export default function Translator(): JSX.Element {
     if (rec) rec.stop();
   }
 
-  // ===== Text-to-Speech (speaker) =====
+  // ===== Text-to-Speech (bunyikan hasil)
   function speak(textToSay: string) {
     if (typeof window === "undefined") return;
     if (!("speechSynthesis" in window)) return;
@@ -199,7 +195,7 @@ export default function Translator(): JSX.Element {
       <header className="max-w-2xl mx-auto text-center mb-4">
         <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-400/90 text-black mr-2">🌍</div>
         <h1 className="inline text-3xl font-extrabold tracking-tight">Fabaro Lingua</h1>
-        <div className="text-xs text-white/70 mt-1">Translator suara & teks — semua bahasa dari API</div>
+        <div className="text-xs text-white/70 mt-1">Translator suara & teks</div>
       </header>
 
       {/* Controls */}
@@ -207,17 +203,14 @@ export default function Translator(): JSX.Element {
         <div className="grid grid-cols-[1fr_auto_1fr] gap-3">
           <select
             value={source}
-            onChange={(e) => setSource(e.target.value)}
+            onChange={e => setSource(e.target.value)}
             className="rounded-2xl p-3 bg-white text-black shadow shadow-black/30"
           >
             <optgroup label="Direkomendasikan">
-              {PINNED.map(l => (
-                <option key={`p-${l.code}`} value={l.code}>{l.name}</option>
-              ))}
+              {PINNED.map(l => <option key={`p-${l.code}`} value={l.code}>{l.name}</option>)}
             </optgroup>
             <optgroup label="Semua bahasa">
-              {langs
-                .filter(l => !PINNED.find(p => p.code === l.code))
+              {langs.filter(l => !PINNED.find(p => p.code === l.code))
                 .map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
             </optgroup>
           </select>
@@ -232,17 +225,14 @@ export default function Translator(): JSX.Element {
 
           <select
             value={target}
-            onChange={(e) => setTarget(e.target.value)}
+            onChange={e => setTarget(e.target.value)}
             className="rounded-2xl p-3 bg-white text-black shadow shadow-black/30"
           >
             <optgroup label="Direkomendasikan">
-              {PINNED.map(l => (
-                <option key={`p2-${l.code}`} value={l.code}>{l.name}</option>
-              ))}
+              {PINNED.map(l => <option key={`p2-${l.code}`} value={l.code}>{l.name}</option>)}
             </optgroup>
             <optgroup label="Semua bahasa">
-              {langs
-                .filter(l => !PINNED.find(p => p.code === l.code))
+              {langs.filter(l => !PINNED.find(p => p.code === l.code))
                 .map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
             </optgroup>
           </select>
@@ -254,39 +244,29 @@ export default function Translator(): JSX.Element {
             className="w-full min-h-[140px] rounded-xl border border-black/10 p-3 text-black outline-none focus:ring-2 focus:ring-purple-500"
             placeholder="Tekan & tahan mic, atau tulis teks Anda di sini…"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={e => setText(e.target.value)}
           />
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            {/* Toggles */}
             <div className="flex items-center gap-4 text-black">
               <label className="text-xs flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={conversation}
-                  onChange={(e) => setConversation(e.target.checked)}
-                />
-                Mode Percakapan (otomatis terjemah & bunyi)
+                <input type="checkbox" checked={conversation} onChange={(e)=>setConversation(e.target.checked)} />
+                Mode Percakapan (rekam → terjemah otomatis)
               </label>
               <label className="text-xs flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={autoSpeak}
-                  onChange={(e) => setAutoSpeak(e.target.checked)}
-                />
+                <input type="checkbox" checked={autoSpeak} onChange={(e)=>setAutoSpeak(e.target.checked)} />
                 Auto bunyikan hasil
               </label>
             </div>
 
-            {/* Mic / Hapus / Translate */}
             <div className="flex items-center gap-2">
               {/* Tekan & tahan untuk rekam */}
               <button
                 onMouseDown={startListening}
                 onMouseUp={stopListening}
                 onMouseLeave={stopListening}
-                onTouchStart={(e) => { e.preventDefault(); startListening(); }}
-                onTouchEnd={(e) => { e.preventDefault(); stopListening(); }}
+                onTouchStart={(e)=>{e.preventDefault(); startListening();}}
+                onTouchEnd={(e)=>{e.preventDefault(); stopListening();}}
                 disabled={!sttSupported}
                 className={`px-3 py-2 rounded-xl text-sm font-semibold shadow ${listening ? "bg-rose-600" : "bg-emerald-600"} hover:brightness-110 disabled:opacity-40`}
                 title={sttSupported ? "Tahan untuk bicara" : "STT tidak didukung di browser ini"}
@@ -295,7 +275,7 @@ export default function Translator(): JSX.Element {
               </button>
 
               <button
-                onClick={() => setText("")}
+                onClick={()=>setText("")}
                 className="px-3 py-2 rounded-xl text-sm font-semibold bg-neutral-800 hover:bg-neutral-700"
               >
                 Hapus
@@ -318,24 +298,26 @@ export default function Translator(): JSX.Element {
             <b>Hasil</b>
             <div className="flex gap-2">
               <button
-                onClick={() => navigator.clipboard.writeText(result || "")}
+                onClick={()=>navigator.clipboard.writeText(result || "")}
                 className="px-3 py-1 rounded-lg text-xs bg-neutral-200 hover:bg-neutral-300"
               >
                 Salin
               </button>
               <button
-                onClick={() => result && (window as any).speechSynthesis && window.speechSynthesis.cancel() || result && speak(result)}
+                onClick={()=>result && speak(result)}
                 className="px-3 py-1 rounded-lg text-xs bg-emerald-500 hover:bg-emerald-600 text-white"
               >
                 🔊 Baca
               </button>
             </div>
           </div>
-          <div className="min-h-[64px] whitespace-pre-wrap">{result || <span className="text-black/50">—</span>}</div>
+          <div className="min-h-[64px] whitespace-pre-wrap">
+            {result || <span className="text-black/50">—</span>}
+          </div>
         </div>
 
         <div className="text-[11px] text-white/60 mt-4 text-center">
-          Catatan: Mic (STT) paling lancar di Chrome/Edge Android. iOS Safari belum mendukung SpeechRecognition.
+          powered by <b>MUKEMEN.AI</b>
         </div>
       </section>
     </main>
