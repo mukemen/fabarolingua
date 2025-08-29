@@ -36,28 +36,68 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id">
       <head>
-        {/* Extra compatibility tags */}
+        {/* Compatibility tags */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#2B0B52" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className={inter.className}>
         {children}
 
-        {/* Register Service Worker */}
+        {/* Register Service Worker + auto update + tombol flush via ?flush=1 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function () {
-                  navigator.serviceWorker.register('/sw.js').catch(function(){});
-                });
-              }
+              (function () {
+                // 1) FLUSH MODE: buka dengan ?flush=1 untuk hapus cache & unregister SW di device lama
+                const params = new URLSearchParams(location.search);
+                if (params.get('flush') === '1') {
+                  (async () => {
+                    try {
+                      if ('serviceWorker' in navigator) {
+                        const regs = await navigator.serviceWorker.getRegistrations();
+                        for (const r of regs) await r.unregister();
+                      }
+                      if ('caches' in window) {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k)));
+                      }
+                      localStorage.clear?.(); sessionStorage.clear?.();
+                    } catch(e) {}
+                    // reload bersih
+                    location.replace(location.origin + location.pathname);
+                  })();
+                  return; // hentikan register saat flush
+                }
+
+                // 2) Register SW dengan cache-buster supaya file sw.js terbaru selalu diambil
+                if ('serviceWorker' in navigator) {
+                  const swUrl = '/sw.js?v=' + Date.now();
+                  navigator.serviceWorker.register(swUrl).then((reg) => {
+                    // Kalau ada SW "waiting", suruh skipWaiting agar langsung aktif
+                    if (reg.waiting) {
+                      reg.waiting.postMessage('SKIP_WAITING');
+                    }
+                    // Saat SW baru terdeteksi
+                    reg.addEventListener('updatefound', () => {
+                      const nw = reg.installing;
+                      if (!nw) return;
+                      nw.addEventListener('statechange', () => {
+                        if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                          // versi baru terpasang -> aktifkan segera
+                          nw.postMessage('SKIP_WAITING');
+                        }
+                      });
+                    });
+                  }).catch(function(){});
+                  // Reload otomatis jika controller SW berubah (agar UI pakai aset terbaru)
+                  navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    location.reload();
+                  });
+                }
+              })();
             `
           }}
         />
