@@ -1,105 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
-export const runtime = "nodejs";
+// app/api/translate/route.ts
+export const runtime = "edge";
 
-const TIMEOUT_MS = 15000;
-
-// Google (jika ada key)
-async function useGoogle(q: string, source: string, target: string) {
-  const key = process.env.GOOGLE_API_KEY;
-  if (!key) throw new Error("NO_GOOGLE_KEY");
-  const params = new URLSearchParams();
-  params.set("q", q);
-  params.set("target", target);
-  if (source) params.set("source", source);
-  params.set("format", "text");
-
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
-  try {
-    const r = await fetch(
-      `https://translation.googleapis.com/language/translate/v2?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(),
-        signal: ac.signal,
-      }
-    );
-    const data = await r.json();
-    if (!r.ok) throw new Error(`GOOGLE_${r.status}:${JSON.stringify(data)}`);
-    return data.data.translations[0].translatedText as string;
-  } finally { clearTimeout(t); }
-}
-
-// LibreTranslate (ENV atau default mirror)
-async function useLibre(q: string, source: string, target: string) {
-  const base = (process.env.LIBRETRANSLATE_URL || "https://translate.argosopentech.com").replace(/\/$/, "");
-  const key  = process.env.LIBRETRANSLATE_API_KEY || "";
-
-  const params = new URLSearchParams();
-  params.set("q", q);
-  params.set("source", source);
-  params.set("target", target);
-  params.set("format", "text");
-  if (key) params.set("api_key", key);
-
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
-  try {
-    const r = await fetch(`${base}/translate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-      body: params.toString(),
-      signal: ac.signal,
-    });
-    const ct = r.headers.get("content-type") || "";
-    const data = ct.includes("application/json") ? await r.json() : { error: await r.text() };
-    if (!r.ok) throw new Error(`LIBRE_${r.status}:${JSON.stringify(data)}`);
-    return (data as any).translatedText as string;
-  } finally { clearTimeout(t); }
-}
-
-// MyMemory (gratis, tanpa key)
-function norm(code: string) {
-  return (code || "").toLowerCase().split("-")[0] || "en";
-}
-async function useMyMemory(q: string, source: string, target: string) {
-  const src = norm(source);
-  const tgt = norm(target);
-  const qs = new URLSearchParams({ q, langpair: `${src}|${tgt}` });
-
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
-  try {
-    const r = await fetch(`https://api.mymemory.translated.net/get?${qs.toString()}`, { signal: ac.signal, cache: "no-store" });
-    const data = await r.json();
-    if (!r.ok) throw new Error(`MYMEM_${r.status}:${JSON.stringify(data)}`);
-    return (data?.responseData?.translatedText as string) || "";
-  } finally { clearTimeout(t); }
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { text, source, target } = await req.json();
     if (!text || !source || !target) {
-      return NextResponse.json({ error: "text, source, target wajib diisi" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "Bad request" }), { status: 400 });
     }
-
-    const steps = [
-      () => useGoogle(text, source, target),
-      () => useLibre(text, source, target),
-      () => useMyMemory(text, source, target),
-    ];
-
-    let lastErr: unknown = null;
-    for (const fn of steps) {
-      try {
-        const out = await fn();
-        if (out) return NextResponse.json({ translation: out });
-      } catch (e) { lastErr = e; }
-    }
-    return NextResponse.json({ error: `All providers failed: ${String(lastErr)}` }, { status: 502 });
+    const base = process.env.LIBRETRANSLATE_URL || "https://translate.argosopentech.com";
+    const key = process.env.LIBRETRANSLATE_API_KEY;
+    const r = await fetch(`${base}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: text, source, target, format: "text", api_key: key || undefined }),
+      cache: "no-store"
+    });
+    const data = await r.json();
+    if (!r.ok) return new Response(JSON.stringify({ error: data?.error || "translate failed" }), { status: 400 });
+    return new Response(JSON.stringify({ translation: data?.translatedText || "" }), { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Internal error" }, { status: 500 });
+    return new Response(JSON.stringify({ error: e?.message || "error" }), { status: 500 });
   }
 }
