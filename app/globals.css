@@ -1,27 +1,28 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ====== Elevation & buttons ====== */
+.shadow-elev { box-shadow: 0 12px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04); }
 
-/* Global Styles */
-body {
-  background: #0b0b12;
-  color: #ffffff;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  margin: 0;
-  padding: 0;
+.btn-primary{
+  @apply rounded-2xl px-5 py-3 bg-purple-600 text-white font-semibold tracking-tight hover:bg-purple-700 active:scale-95 ripple;
+}
+.btn-tonal{
+  @apply inline-flex items-center rounded-2xl px-4 py-2 text-white font-medium tracking-tight active:scale-95 ripple;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
+/* Switch pill */
+.switch{
+  @apply w-full select-none rounded-2xl px-4 py-2 bg-white/10 text-white/80 border border-white/10 flex items-center justify-between transition-all;
+}
+.switch-on{
+  @apply bg-purple-600/30 text-white border-purple-500/40;
 }
 
-button {
-  cursor: pointer;
-  transition: background 0.2s ease-in-out, transform 0.1s ease-in-out;
+/* Ripple effect (CSS only) */
+.ripple { position: relative; overflow: hidden; }
+.ripple:after {
+  content: ""; position: absolute; inset: 0; background: radial-gradient(circle, rgba(255,255,255,.35) 10%, transparent 10%) center/0 0 no-repeat;
+  transition: background-size .4s ease;
 }
+.ripple:active:after { background-size: 12000% 12000%; transition: background-size .45s cubic-bezier(.2,.6,.2,1); }
 
-button:hover {
-  transform: translateY(-2px);
-}
+/* Page bg feel Android */
+html, body { background: radial-gradient(1200px 500px at 50% -100px, #43256b 0%, #1a1528 45%, #0b0b0f 100%) fixed; }
