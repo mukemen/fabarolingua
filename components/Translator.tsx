@@ -1,13 +1,31 @@
-// components/Translator.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+/* ====== Util kecil untuk ikon (SVG inline) ====== */
+const Icon = {
+  swap: (cls = "w-5 h-5") => (
+    <svg viewBox="0 0 24 24" className={cls} fill="currentColor"><path d="M7 7h11l-2.5-2.5 1.42-1.42L22.84 7l-5.92 3.92-1.42-1.42L18 8H7V7zm10 10H6l2.5 2.5-1.42 1.42L1.16 17l5.92-3.92 1.42 1.42L6 16h11v1z"/></svg>
+  ),
+  mic: (cls = "w-5 h-5") => (
+    <svg viewBox="0 0 24 24" className={cls} fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+  ),
+  play: (cls = "w-5 h-5") => (
+    <svg viewBox="0 0 24 24" className={cls} fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+  ),
+  copy: (cls = "w-5 h-5") => (
+    <svg viewBox="0 0 24 24" className={cls} fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14h13c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+  ),
+  trash: (cls = "w-5 h-5") => (
+    <svg viewBox="0 0 24 24" className={cls} fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+  ),
+};
+
 type Lang = { code: string; name: string };
 
-// Bahasa prioritas (kode mengikuti LibreTranslate)
-const PRIORITY_LANGS: Lang[] = [
-  { code: "id", name: "Indonesian (Indonesia)" },
+/* Bahasa prioritas */
+const PRIORITY: Lang[] = [
+  { code: "id", name: "Indonesia" },
   { code: "en", name: "English (Amerika)" },
   { code: "ja", name: "Japanese" },
   { code: "zh", name: "Chinese (Simplified)" },
@@ -19,34 +37,20 @@ const PRIORITY_LANGS: Lang[] = [
   { code: "it", name: "Italian" },
   { code: "ko", name: "Korean" },
   { code: "nl", name: "Dutch" },
-  // Lokal Indonesia (eksperimental di mirror tertentu)
   { code: "jv", name: "Javanese" },
   { code: "su", name: "Sundanese" },
-  { code: "min", name: "Minangkabau" }
+  { code: "min", name: "Minangkabau" },
 ];
 
-// Peta kode → bahasa BCP-47 untuk TTS/ASR
+/* BCP-47 untuk TTS/ASR */
 const BCP47: Record<string, string> = {
-  id: "id-ID",
-  en: "en-US",
-  ja: "ja-JP",
-  zh: "zh-CN",
-  ru: "ru-RU",
-  de: "de-DE",
-  hi: "hi-IN",
-  ar: "ar-SA",
-  fr: "fr-FR",
-  it: "it-IT",
-  ko: "ko-KR",
-  nl: "nl-NL",
-  jv: "jv-ID",
-  su: "su-ID",
-  min: "id-ID" // fallback
+  id: "id-ID", en: "en-US", ja: "ja-JP", zh: "zh-CN", ru: "ru-RU", de: "de-DE",
+  hi: "hi-IN", ar: "ar-SA", fr: "fr-FR", it: "it-IT", ko: "ko-KR", nl: "nl-NL",
+  jv: "jv-ID", su: "su-ID", min: "id-ID",
 };
 
 export default function Translator() {
-  // STATE
-  const [langs, setLangs] = useState<Lang[]>(PRIORITY_LANGS);
+  const [langs, setLangs] = useState<Lang[]>(PRIORITY);
   const [src, setSrc] = useState("id");
   const [tgt, setTgt] = useState("en");
   const [text, setText] = useState("");
@@ -55,36 +59,28 @@ export default function Translator() {
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [convMode, setConvMode] = useState(true);
 
-  // Speech
-  const recRef = useRef<SpeechRecognition | null>(null);
+  const recRef = useRef<any>(null);
   const speakingRef = useRef(false);
 
-  // ----- INIT LANGS (ambil dari API jika ada) -----
+  /* Ambil daftar bahasa dari /api/languages bila ada */
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/languages", { cache: "no-store" });
-        if (!res.ok) return;
-        const arr: Lang[] = await res.json();
+        const r = await fetch("/api/languages", { cache: "no-store" });
+        if (!r.ok) return;
+        const arr: Lang[] = await r.json();
         if (Array.isArray(arr) && arr.length) {
-          // Kombinasikan prioritas (agar pasti ada) + unik
           const map = new Map<string, Lang>();
-          [...PRIORITY_LANGS, ...arr].forEach((l) => map.set(l.code, l));
+          [...PRIORITY, ...arr].forEach((l) => map.set(l.code, l));
           setLangs([...map.values()]);
         }
-      } catch {
-        // abaikan, pakai PRIORITY_LANGS
-      }
+      } catch {}
     })();
   }, []);
 
-  // ----- TRANSLATE -----
+  /* Translate */
   async function translate(input?: string) {
-    const payload = {
-      text: (input ?? text).trim(),
-      source: src,
-      target: tgt
-    };
+    const payload = { text: (input ?? text).trim(), source: src, target: tgt };
     if (!payload.text) return;
     setLoading(true);
     setResult("");
@@ -92,7 +88,7 @@ export default function Translator() {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Terjemahan gagal");
@@ -106,7 +102,6 @@ export default function Translator() {
     }
   }
 
-  // ----- SWAP -----
   function swap() {
     setSrc((prev) => {
       const next = tgt;
@@ -116,16 +111,13 @@ export default function Translator() {
     setResult("");
   }
 
-  // ----- TTS -----
   function speak(msg: string, code: string) {
-    if (!msg) return;
-    if (!("speechSynthesis" in window)) return;
+    if (!msg || !("speechSynthesis" in window)) return;
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(msg);
       const lang = BCP47[code] || "en-US";
       u.lang = lang;
-      // pilih voice paling cocok
       const voices = window.speechSynthesis.getVoices();
       const pick =
         voices.find((v) => v.lang?.toLowerCase().startsWith(lang.toLowerCase())) ||
@@ -135,209 +127,161 @@ export default function Translator() {
       speakingRef.current = true;
       u.onend = () => (speakingRef.current = false);
       window.speechSynthesis.speak(u);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
-  // ----- ASR / MIC -----
-  type SpeechRecognition = any;
-  function getRecognizer(): SpeechRecognition | null {
-    const SR: any =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  function recognizer(): any | null {
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return null;
     if (!recRef.current) {
-      const r: SpeechRecognition = new SR();
+      const r: any = new SR();
       r.lang = BCP47[src] || "id-ID";
       r.continuous = convMode;
       r.interimResults = false;
-      r.maxAlternatives = 1;
       r.onresult = (e: any) => {
-        const transcript = e.results?.[e.results.length - 1]?.[0]?.transcript || "";
-        if (!transcript) return;
-        setText((prev) => (prev ? prev + " " : "") + transcript);
-        if (convMode) translate(transcript);
+        const t = e.results?.[e.results.length - 1]?.[0]?.transcript || "";
+        if (!t) return;
+        setText((p) => (p ? p + " " : "") + t);
+        if (convMode) translate(t);
       };
-      r.onerror = () => {};
       r.onend = () => {
-        // jika mode percakapan, otomatis start lagi
         if (convMode && !speakingRef.current) {
-          setTimeout(() => {
-            try {
-              r.start();
-            } catch {}
-          }, 250);
+          setTimeout(() => { try { r.start(); } catch {} }, 250);
         }
       };
       recRef.current = r;
     }
-    // update bahasa jika berubah
-    try {
-      recRef.current.lang = BCP47[src] || "id-ID";
-    } catch {}
+    try { recRef.current.lang = BCP47[src] || "id-ID"; } catch {}
     return recRef.current;
   }
 
   function startMic() {
-    const r = getRecognizer();
-    if (!r) {
-      alert("Mic tidak didukung browser ini. Coba Chrome/Edge Android.");
-      return;
-    }
-    try {
-      r.start();
-    } catch {}
+    const r = recognizer();
+    if (!r) { alert("Mic tidak didukung browser ini. Coba Chrome/Edge Android."); return; }
+    try { r.start(); } catch {}
   }
-  function stopMic() {
-    try {
-      recRef.current?.stop();
-    } catch {}
-  }
+  function stopMic() { try { recRef.current?.stop(); } catch {} }
 
-  // ----- UI HELPERS -----
   const disabled = useMemo(() => loading, [loading]);
 
   return (
-    <div className="space-y-4">
-      {/* PILIHAN BAHASA & SWAP */}
-      <div className="flex items-center gap-2">
-        <select
-          className="w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-          value={src}
-          onChange={(e) => {
-            setSrc(e.target.value);
-            // update lang recognizer agar sesuai
-            try {
-              if (recRef.current) recRef.current.lang = BCP47[e.target.value] || "id-ID";
-            } catch {}
-          }}
-        >
-          {langs.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+    <div className="mx-auto max-w-[640px] space-y-5">
+      {/* KARTU UTAMA */}
+      <section className="rounded-3xl border border-white/10 bg-[#121216]/70 backdrop-blur shadow-elev p-4 sm:p-6">
+        {/* Bar pilihan bahasa */}
+        <div className="flex items-center gap-2">
+          <select
+            className="w-full h-11 rounded-2xl bg-white/[0.06] text-white border border-white/10 px-3 outline-none focus:ring-2 focus:ring-purple-500"
+            value={src}
+            onChange={(e) => { setSrc(e.target.value); try { if (recRef.current) recRef.current.lang = BCP47[e.target.value]; } catch {} }}
+          >
+            {langs.map((l) => (<option key={l.code} value={l.code}>{l.name}</option>))}
+          </select>
 
-        <button
-          type="button"
-          onClick={swap}
-          className="shrink-0 rounded-xl bg-purple-600 px-3 py-2 text-white hover:bg-purple-700 active:scale-95"
-          title="Tukar bahasa"
-        >
-          ⇄
-        </button>
+          <button
+            onClick={swap}
+            className="h-11 w-11 rounded-2xl bg-purple-600 text-white hover:bg-purple-700 active:scale-95 grid place-content-center ripple"
+            title="Tukar bahasa"
+            type="button"
+          >
+            {Icon.swap("w-5 h-5")}
+          </button>
 
-        <select
-          className="w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-purple-500"
-          value={tgt}
-          onChange={(e) => setTgt(e.target.value)}
-        >
-          {langs.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* INPUT */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={6}
-          placeholder="Tekan & tahan mic, atau tulis teks di sini..."
-          className="w-full resize-none rounded-xl bg-black/20 p-3 text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-purple-500"
-        />
-
-        {/* OPTIONS */}
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex items-start gap-2 text-sm text-white/80">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-purple-600"
-              checked={convMode}
-              onChange={(e) => setConvMode(e.target.checked)}
-            />
-            <span>
-              Mode Percakapan <span className="text-white/50">(rekam → terjemah otomatis)</span>
-            </span>
-          </label>
-
-          <label className="flex items-start gap-2 text-sm text-white/80">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-purple-600"
-              checked={autoSpeak}
-              onChange={(e) => setAutoSpeak(e.target.checked)}
-            />
-            <span>Auto bunyikan hasil</span>
-          </label>
+          <select
+            className="w-full h-11 rounded-2xl bg-white/[0.06] text-white border border-white/10 px-3 outline-none focus:ring-2 focus:ring-purple-500"
+            value={tgt}
+            onChange={(e) => setTgt(e.target.value)}
+          >
+            {langs.map((l) => (<option key={l.code} value={l.code}>{l.name}</option>))}
+          </select>
         </div>
 
-        {/* ACTIONS */}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        {/* Textarea */}
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={6}
+            placeholder="Tekan & tahan mic, atau tulis teks di sini…"
+            className="w-full resize-none rounded-xl bg-transparent p-2 text-white placeholder-white/40 outline-none"
+          />
+        </div>
+
+        {/* Switch */}
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            className={`switch ${convMode ? "switch-on" : ""}`}
+            onClick={() => setConvMode((v) => !v)}
+          >
+            <span className="mr-2">Mode Percakapan</span>
+            <span className="text-white/50">(rekam → terjemah otomatis)</span>
+          </button>
+
+          <button
+            type="button"
+            className={`switch ${autoSpeak ? "switch-on" : ""}`}
+            onClick={() => setAutoSpeak((v) => !v)}
+          >
+            Auto bunyikan hasil
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             onMouseDown={startMic}
             onMouseUp={stopMic}
             onTouchStart={startMic}
             onTouchEnd={stopMic}
-            className="rounded-xl bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 active:scale-95"
+            className="btn-tonal bg-emerald-600 hover:bg-emerald-700"
             type="button"
           >
-            🎤 Suara
+            {Icon.mic()} <span className="ml-2">Suara</span>
           </button>
 
           <button
-            onClick={() => {
-              setText("");
-              setResult("");
-              stopMic();
-            }}
-            className="rounded-xl bg-neutral-700 px-4 py-2 text-white hover:bg-neutral-600 active:scale-95"
+            onClick={() => { setText(""); setResult(""); stopMic(); }}
+            className="btn-tonal bg-neutral-700 hover:bg-neutral-600"
             type="button"
           >
-            Hapus
+            {Icon.trash()} <span className="ml-2">Hapus</span>
           </button>
 
           <button
             disabled={disabled}
             onClick={() => translate()}
-            className="rounded-xl bg-purple-600 px-4 py-2 text-white hover:bg-purple-700 active:scale-95 disabled:opacity-50"
+            className="btn-primary disabled:opacity-60"
             type="button"
           >
             {loading ? "Menerjemahkan…" : "Terjemahkan"}
           </button>
         </div>
-      </div>
+      </section>
 
       {/* HASIL */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className="mb-2 text-sm font-medium text-white/80">Hasil</div>
-        <div className="min-h-[84px] rounded-xl bg-black/20 p-3 text-white">
+      <section className="rounded-3xl border border-white/10 bg-[#121216]/70 backdrop-blur shadow-elev p-4 sm:p-6">
+        <div className="mb-2 text-sm font-semibold text-white/80">Hasil</div>
+        <div className="min-h-[96px] rounded-2xl bg-black/30 p-3 text-white">
           {result || <span className="text-white/40">—</span>}
         </div>
         <div className="mt-3 flex flex-wrap gap-3">
           <button
-            onClick={() => {
-              if (!result) return;
-              navigator.clipboard.writeText(result);
-            }}
-            className="rounded-xl bg-neutral-700 px-4 py-2 text-white hover:bg-neutral-600 active:scale-95"
+            onClick={() => { if (!result) return; navigator.clipboard.writeText(result); }}
+            className="btn-tonal bg-neutral-700 hover:bg-neutral-600"
             type="button"
           >
-            Salin
+            {Icon.copy()} <span className="ml-2">Salin</span>
           </button>
           <button
             onClick={() => speak(result, tgt)}
-            className="rounded-xl bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 active:scale-95"
+            className="btn-tonal bg-emerald-600 hover:bg-emerald-700"
             type="button"
           >
-            🔊 Baca
+            {Icon.play()} <span className="ml-2">Baca</span>
           </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
